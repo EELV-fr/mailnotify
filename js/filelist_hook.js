@@ -1,5 +1,3 @@
-
-
 $(document).ready(function() {
   if (typeof FileActions !== 'undefined') {
     

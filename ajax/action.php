@@ -2,7 +2,6 @@
 OCP\JSON::callCheck();
 $action = '';
 $action_gid = '';
-
 if(isset($_POST['action']) && isset($_POST['action_gid']) ){
 	$action = $_POST['action'];
 	$action_gid = $_POST['action_gid'];
