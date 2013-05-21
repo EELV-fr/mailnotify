@@ -7,14 +7,14 @@ $(document).ready(function() {
 	    		$('tr').filterAttr('data-file', String(file)).hover(function(){
 	    			if($(this).data('state')==undefined){ 
 	    				$.post(OC.filePath('mailnotify', 'ajax','action.php'), {action:'isDisabled',action_gid:filepath}, function(disabled) {
-			    			var path_img = 'eye.png';
+			    			var path_img = 'mail.png';
 			    			var state='active';
 			    			if(disabled == '1'){	
-								path_img = 'eye2.png';
+								path_img = 'mail2.png';
 								state = 'inactive';
 								
 							}else if(disabled == '2'){
-								path_img = 'eye3.png';
+								path_img = 'mail3.png';
 								//path_img = '';
 								state = 'notshared';
 			
@@ -26,7 +26,7 @@ $(document).ready(function() {
 	    			} 
 		    	});   		
 	    			
-				return OC.imagePath('mailnotify', 'eye3.png');	      
+				return OC.imagePath('mailnotify', 'mail3.png');	      
 		    }, 
 		    function (file) {	    	
 			    var row = $('tr').filterAttr('data-file', String(file));
@@ -54,7 +54,7 @@ function ChangeState(folder, currentstate, that){
 				  data: { action:'remove',action_gid:folder},
 				  success: function(retour){
 				  	if(retour=='1'){
-						$(that).find('img').attr('src', OC.imagePath('mailnotify', 'eye2.png'));
+						$(that).find('img').attr('src', OC.imagePath('mailnotify', 'mail2.png'));
 			  			$(that).parent().parent().parent().parent().attr('data-state', 'inactive');
 		  			}
 				  }
@@ -67,7 +67,7 @@ function ChangeState(folder, currentstate, that){
 				  data: { action:'add',action_gid:folder},
 				  success: function(retour){
 				  	if(retour=='1'){
-				  		$(that).children('img').attr('src', OC.imagePath('mailnotify', 'eye.png'));
+				  		$(that).children('img').attr('src', OC.imagePath('mailnotify', 'mail.png'));
 		  				$(that).parent().parent().parent().parent().attr('data-state', 'active');
 				  	}
 					
