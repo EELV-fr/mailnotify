@@ -235,15 +235,37 @@ class OC_MailNotify_Mailing {
 	public static function email($mail,$count,$str_filenames,$folder,$owner){
 		
 		$l = new OC_L10N('mailnotify');
-		$subject = getenv('SERVER_NAME')." - ".$l->t('New upload');
-		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=iso-8859-1\r\nFrom: ".getenv('SERVER_NAME')." <cloud@".getenv('SERVER_NAME').">\r\n";
+		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New upload');
+		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=iso-8859-1\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
 
 		$signature = '<a href="'.OCP\Util::linkToAbsolute('files','index.php').'">'.getenv('SERVER_NAME').'</a>'.'<br>'.$l->t('This e-mail is automatic, please, do not reply to it. If you no longer want to receive theses alerts, disable notification on each shared items.');
 		$text = '<html>'.$l->t('There was').' <b>'.$count.'</b> '.$l->t('new files uploaded in').' <a href="'.OCP\Util::linkToAbsolute('files','index.php').'?dir='.$folder.'" target="_blank">'.$folder.'</a> ('.$owner.')<br/><br/>'.$str_filenames.'<br/><p>'.$signature.'</p></html>';
-		mail($mail, $subject, $text, $from);	
-						
+		mail($mail, $subject, $text, $from);
+
 	}
-	public static function db_notify_group_members()	{
+	
+
+	/**
+	 * notify a uid of new internal message.
+	 */
+	public static function email_IntMsg($fromUid, $toUid, $msg){		
+		$l = new OC_L10N('mailnotify');
+		$toEmail = OC_MailNotify_Mailing::db_get_mail_by_user($toUid);			
+		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New message from '.$fromUid);
+		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=iso-8859-1\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
+		$intMsgUrl = OCP\Util::linkToAbsolute('index.php/apps/internal_messages');
+		
+		$text = '<html><br/>'.$l->t('<p>Hi %s,<br> You have a new message from <b>%s</b>.
+									<p %s><br>%s<br></p>
+									Please log in to <a href="%s">%s</a> to reply.<br>
+									<p %s>This e-mail is automatic, please, do not reply to it.</p></html>',
+									array($toUid, $fromUid, 'style="background-color:rgb(248,248,248);padding:20px;margin:15px;border:1px solid silver;border-radius:5px;"',$msg, $intMsgUrl,getenv('SERVER_NAME'),'style="color:grey;"'));
+									
+		mail($toEmail, $subject, $text.$signature, $from);	
+	}
+	
+	
+	public static function db_notify_group_members(){
 		$upload_users = self::db_get_upload_users();
 		//print_r($upload_users);
 		
