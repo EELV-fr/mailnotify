@@ -236,10 +236,11 @@ class OC_MailNotify_Mailing {
 		
 		$l = new OC_L10N('mailnotify');
 		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New upload');
-		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=iso-8859-1\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
+		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=UTF-8\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
 
 		$signature = '<a href="'.OCP\Util::linkToAbsolute('files','index.php').'">'.getenv('SERVER_NAME').'</a>'.'<br>'.$l->t('This e-mail is automatic, please, do not reply to it. If you no longer want to receive theses alerts, disable notification on each shared items.');
-		$text = '<html>'.$l->t('There was').' <b>'.$count.'</b> '.$l->t('new files uploaded in').' <a href="'.OCP\Util::linkToAbsolute('files','index.php').'?dir='.$folder.'" target="_blank">'.$folder.'</a> ('.$owner.')<br/><br/>'.$str_filenames.'<br/><p>'.$signature.'</p></html>';
+		
+		$text = '<html><p style="margin-bottom:10px;">'.$l->t('There was').' <b>'.$count.'</b> '.$l->t('new files uploaded in').' <a href="'.OCP\Util::linkToAbsolute('files','index.php').'?dir='.$folder.'" target="_blank">'.$folder.'</a> ('.$owner.')</p>'.$str_filenames.'<br/><p>'.$signature.'</p></html>';
 		mail($mail, $subject, $text, $from);
 
 	}
@@ -252,7 +253,7 @@ class OC_MailNotify_Mailing {
 		$l = new OC_L10N('mailnotify');
 		$toEmail = OC_MailNotify_Mailing::db_get_mail_by_user($toUid);			
 		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New message from '.$fromUid);
-		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=iso-8859-1\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
+		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=UTF-8\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
 		$intMsgUrl = OCP\Util::linkToAbsolute('index.php/apps/internal_messages');
 		
 		$text = '<html><br/>'.$l->t('<p>Hi %s,<br> You have a new message from <b>%s</b>.
