@@ -4,7 +4,7 @@
 * ownCloud - MailNotify Plugin
 *
 * @author Jascha Burmeister
-* @contributors Bastien Ho
+* @contributors Bastien Ho, Felix Baltruschat
 * @copyright 2012 Jascha Burmeister burmeister@wortbildton.de
 * 
 * This library is free software; you can redistribute it and/or

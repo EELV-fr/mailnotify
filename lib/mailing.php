@@ -59,18 +59,18 @@ class OC_MailNotify_Mailing {
 	{
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `group` = ?');
 		if($query->execute(array($uid, $gid))){
-			return true;
+			return 1;
 		}
-		return false;
+		return 0;
 	}
 
 	public static function db_add_user_setting($uid, $gid)
 	{
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_usersettings`(`uid`, `group`, `value`) VALUES(?,?,?)');
 		if($query->execute(array($uid, $gid, '1'))){
-			return true;
+			return 1;
 		}
-		return false;
+		return 0;
 	}
 
 	/**
@@ -78,6 +78,8 @@ class OC_MailNotify_Mailing {
 	 */
 
 	public static function db_is_disabled_for_group($uid, $gid){
+		$gid = urldecode($gid);
+
 		if(self::db_folder_is_shared($gid)){
 			$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `group` = ?');
 			$result=$query->execute(array($uid, $gid));
@@ -112,8 +114,6 @@ class OC_MailNotify_Mailing {
 		$count = count($splits);
 		$path = "/".$splits[$count-1];
 
-		//print($path);
-
 		$strings = array();
 		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ?');
 		$result=$query->execute(array($path));
@@ -125,7 +125,6 @@ class OC_MailNotify_Mailing {
 		while($row=$result->fetchRow()) {
 			$strings[]=$row;
 		}
-
 
 		$count = count($strings);
 
@@ -156,6 +155,7 @@ class OC_MailNotify_Mailing {
 
 	public static function db_count_uploads($gid)
 	{
+		$strings = array();
 		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_uploads` WHERE `folder` = ?');
 		$result=$query->execute(array($gid));
 		if(OC_DB::isError($result)) {
@@ -272,7 +272,6 @@ class OC_MailNotify_Mailing {
 		foreach($upload_users as $upload_user){
 			
 			$folder = self::db_get_group_by_path($upload_user['path']);
-			
 			
 			$query=OC_DB::prepare("SELECT * FROM `*PREFIX*share` WHERE `file_target` = ?");
 			$result=$query->execute(array('/'.$folder));
@@ -391,14 +390,14 @@ class OC_MailNotify_Mailing {
 	{
 		$splits = explode("/", substr($path, 1, strlen($path) ));
 
-		if($splits[0] == 'Shared'){
+		/*if($splits[0] == 'Shared'){
 			//print($splits[1]);
 			return $splits[1];
 		}else{
 			//print($splits[0]);
 			return $splits[0];
-		}
-
+		}*/
+		return $splits[count($splits)-2];
 		/*$count = count($splits);
 
 		if($count != '' and $count != 0)

@@ -5,7 +5,7 @@ $(document).ready(function() {
 	    	function (file) {
 	    		var filepath = $('#dir').val() + '/' + file;
 	    		$('tr').filterAttr('data-file', String(file)).hover(function(){
-	    			if($(this).data('state')==undefined){ 
+	    			if($(this).data('state')==undefined){   
 	    				$.post(OC.filePath('mailnotify', 'ajax','action.php'), {action:'isDisabled',action_gid:filepath}, function(disabled) {
 			    			var path_img = 'mail.png';
 			    			var state='active';
@@ -15,11 +15,10 @@ $(document).ready(function() {
 								
 							}else if(disabled == '2'){
 								path_img = 'mail3.png';
-								//path_img = '';
 								state = 'notshared';
 			
 							}
-							var row = $('tr').filterAttr('data-file', String(file));
+							var row = $('tr').filterAttr('data-file', String(decodeURIComponent(file)));
 							$(row).attr('data-state', state);
 							$(row).find('a').filterAttr('data-action', t('mailnotify','Notify')).find('img').attr('src', OC.imagePath('mailnotify',path_img));
 			    		});
@@ -37,13 +36,13 @@ $(document).ready(function() {
 		  			folder = dir+"/"+file;
 		  		}else{
 		  			folder = "/"+file;
-		  		}	
+		  		}
 		  		ChangeState(folder, currentstate, ele_fileNotify);	  
 	   	 });
 	}
 });
 function ChangeState(folder, currentstate, that){
-	
+				
 		  	if(currentstate == 'notshared'){
 		  		return 0;
 		  	}
@@ -51,7 +50,7 @@ function ChangeState(folder, currentstate, that){
 				$.ajax({
 				  type: "POST",
 				  url: OC.filePath('mailnotify', 'ajax','action.php'),
-				  data: { action:'remove',action_gid:folder},
+				  data: { action:'add',action_gid:folder},
 				  success: function(retour){
 				  	if(retour=='1'){
 						$(that).find('img').attr('src', OC.imagePath('mailnotify', 'mail2.png'));
@@ -64,14 +63,13 @@ function ChangeState(folder, currentstate, that){
 				$.ajax({
 				  type: "POST",
 				  url: OC.filePath('mailnotify', 'ajax','action.php'),
-				  data: { action:'add',action_gid:folder},
+				  data: { action:'remove',action_gid:folder},
 				  success: function(retour){
 				  	if(retour=='1'){
 				  		$(that).children('img').attr('src', OC.imagePath('mailnotify', 'mail.png'));
 		  				$(that).parent().parent().parent().parent().attr('data-state', 'active');
 				  	}
 					
-		  			//$onprocess = false;
 				  }
 				});
 				
