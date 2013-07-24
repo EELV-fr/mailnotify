@@ -296,9 +296,12 @@ class OC_MailNotify_Mailing {
 
 				$str_filenames = '<ul>';
 				foreach($filenames as $file){
+					$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file['path']);
+					$link_text = basename($file['path']);
+
 					$str_filenames .= '<li>
-					<a href="'.OCP\Util::linkToAbsolute('files','index.php').'/download'.$file['path'].'" target="_blank">'.basename($file['path']).'</a> 
-					<font color="#696969">('.$file['owner'].')</font>
+					<a href="'.$url_path.'" target="_blank">'. OC_Util::sanitizeHTML($link_text).'</a> 
+					<font color="#696969">('.OC_Util::sanitizeHTML($file['owner']).')</font>
 					</li>';
 				}
 				$str_filenames.='</ul>';			
@@ -352,13 +355,7 @@ class OC_MailNotify_Mailing {
 			$strings[]=array('path'=>$row['path'],'owner'=>$row['uid']);
 		}
 
-		/*if(is_array($strings)){
-			print_r($strings);
-		}*/
 		
-		//exit();
-
-		//$count = count($strings);
 		return $strings;
 	}
 
@@ -390,24 +387,8 @@ class OC_MailNotify_Mailing {
 	public static function db_get_group_by_path($path)
 	{
 		$splits = explode("/", substr($path, 1, strlen($path) ));
-
-		/*if($splits[0] == 'Shared'){
-			//print($splits[1]);
-			return $splits[1];
-		}else{
-			//print($splits[0]);
-			return $splits[0];
-		}*/
 		return $splits[count($splits)-2];
-		/*$count = count($splits);
-
-		if($count != '' and $count != 0)
-		{
-			return $splits[$count-2];
-		}
-
-		return 0;*/
-
+	
 	}
 
 
