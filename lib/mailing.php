@@ -37,17 +37,22 @@ class OC_MailNotify_Mailing {
 
 			$timestamp = time();
 
-			//db part
+			// looking for parent folder which is shared with me
 			$gid = self::db_get_group_by_path($path['path']);
-			if(self::db_insert_upload($user, $path['path'], $timestamp, $gid)){
+
+			if($gid != -1){
+
+				if(self::db_insert_upload($user, $path['path'], $timestamp, $gid)){
+					
+				}
+				else{
+					
+				}
 				
+				// for cronjob too
+				self::db_notify_group_members();
+
 			}
-			else{
-				
-			}
-			
-			// for cronjob too
-			self::db_notify_group_members();
 
 	}
 
@@ -136,6 +141,37 @@ class OC_MailNotify_Mailing {
 
 	}
 
+	/**
+	 * bool folder shared with me
+	 * format: /examplefolder
+	 */
+
+	public static function db_folder_is_shared_with_me($folder){
+
+		$user = OCP\User::getUser();
+
+		$strings = array();
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ? AND (`share_with` = ? OR `uid_owner` = ?)');
+		$result=$query->execute(array($folder,$user,$user));
+
+		if(OC_DB::isError($result)) {
+			return;
+		}
+
+		while($row=$result->fetchRow()) {
+			$strings[]=$row;
+		}
+
+		$count = count($strings);
+
+		if($count >= 1){
+			return true;
+		}else{
+			return false;
+		}
+
+	}
+
 
 	/**
 	 * Inserts an upload entry in our mail notify database
@@ -180,7 +216,7 @@ class OC_MailNotify_Mailing {
 		//print($gid);
 
 		$strings = array();
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `group` LIKE ? AND `value`=2');
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `group` LIKE ? AND `value`=1');
 		$result=$query->execute(array($uid, '%'.$gid.'%'));
         
 		if(OC_DB::isError($result)) {
@@ -273,6 +309,10 @@ class OC_MailNotify_Mailing {
 		foreach($upload_users as $upload_user){
 			
 			$folder = self::db_get_group_by_path($upload_user['path']);
+
+			if($folder == -1){
+				continue;
+			}
 			
 			$query=OC_DB::prepare("SELECT * FROM `*PREFIX*share` WHERE `file_target` = ?");
 			$result=$query->execute(array('/'.$folder));
@@ -386,8 +426,22 @@ class OC_MailNotify_Mailing {
 
 	public static function db_get_group_by_path($path)
 	{
+		//$splits = explode("/", substr($path, 1, strlen($path) ));
+		//return $splits[count($splits)-2];
+
+		// tweak: get shared folder which is accessable by me
+
 		$splits = explode("/", substr($path, 1, strlen($path) ));
-		return $splits[count($splits)-2];
+
+		$count = count($splits);
+		for ($i = 2; $i <= $count; $i++) {
+			if(self::db_folder_is_shared_with_me("/".$splits[$count-$i])){
+				return $splits[$count-$i];
+			}
+		}
+
+		return -1;
+
 	
 	}
 
