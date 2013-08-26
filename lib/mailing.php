@@ -6,8 +6,6 @@
 * OC_MailNotify_Mailing Class
 *
 */
-$action = '';
-$action_gid = '';
 
 
 class OC_MailNotify_Mailing {
@@ -23,36 +21,24 @@ class OC_MailNotify_Mailing {
 	public function OC_MailNotify_Mailing(){
 		
 	}
+	
+	
 	/**
 	 * Main hooked function
+	 * trigger on file/folder change/upload 
 	 */
-
 	public static function main($path){
-
-			// app path
-			$app_path = getcwd()."/apps/mailnotify/";
-
-			// username
-			$user = OCP\User::getUser();
-
-			$timestamp = time();
-
-			// looking for parent folder which is shared with me
-			$gid = self::db_get_group_by_path($path['path']);
-
-			if($gid != -1){
-
-				if(self::db_insert_upload($user, $path['path'], $timestamp, $gid)){
-					
-				}
-				else{
-					
-				}
-				
-				// for cronjob too
-				self::db_notify_group_members();
-
-			}
+		$timestamp = time();
+		// return the first parent file/folder shared in the path hiearchy  
+		// or -1 if the file is set to NOT be notifed by eanny parrent and this self
+		$gid = self::db_get_group_by_path($path['path']);
+			
+		if($gid != -1){
+			// add file/folder to the notifications queue in the database. 
+			self::db_insert_upload(OCP\User::getUser(), $path['path'], $timestamp, $gid);	
+		}else{
+			OC_Log::write('mailnotify', 'Nothing to do. This file/folder is not shared or under a shared directory.', OC_Log::DEBUG);				
+		}
 
 	}
 
@@ -182,6 +168,13 @@ class OC_MailNotify_Mailing {
 		//if(!OC_Group::groupExists($gid)) { return; }
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_uploads`(`uid`, `path`, `timestamp`, `folder`) VALUES(?,?,?,?)');
 		$result=$query->execute(array($uid, $path, $timestamp, $gid));
+		
+		if ($relult) {
+			OC_Log::write('mailnotify', 'New notification added in the notify database', OC_Log::DEBUG);			
+		}else{
+			OC_Log::write('mailnotify', 'Failed to add new notification in the notify database', OC_Log::ERROR);			
+		}
+		
 		return $result;
 	}
 
@@ -383,6 +376,32 @@ class OC_MailNotify_Mailing {
 	 * Get upload filenames by folder
 	 */
 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
 	public static function db_get_upload_filenames($gid)
 	{
 		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_uploads` WHERE `folder` = ?');
@@ -390,14 +409,14 @@ class OC_MailNotify_Mailing {
 		if(OC_DB::isError($result)) {
 			return;
 		}
-
 		while($row=$result->fetchRow()) {
-			$strings[]=array('path'=>$row['path'],'owner'=>$row['uid']);
+			$strings=array('path'=>$row['path'],'owner'=>$row['uid']);
 		}
-
-		
 		return $strings;
 	}
+
+
+
 
 	/**
 	 * Get mail by userID
@@ -426,10 +445,6 @@ class OC_MailNotify_Mailing {
 
 	public static function db_get_group_by_path($path)
 	{
-		//$splits = explode("/", substr($path, 1, strlen($path) ));
-		//return $splits[count($splits)-2];
-
-		// tweak: get shared folder which is accessable by me
 
 		$splits = explode("/", substr($path, 1, strlen($path) ));
 
