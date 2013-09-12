@@ -1,5 +1,4 @@
 <?php
-
 /**
 * ownCloud - MailNotify Plugin
 *
@@ -12,7 +11,7 @@ class OC_MailNotify_Mailing {
 
 	// do not notify for following folders
 	public static $no_notify_folders = array('fakeGroup1','fakeGroup2');
-	public static $minimum_queue_delay = 300;
+	public static $minimum_queue_delay = 0;
 
 	
 	//==================== PUBLIC ==============================//
@@ -53,28 +52,24 @@ class OC_MailNotify_Mailing {
 
 
 	/**
-	 * direct notification of an internal message (no queue)
+	 * direct notification of an internal message (no queue delay)
 	 */
 	public static function email_IntMsg($fromUid, $toUid, $msg){		
 		$l = new OC_L10N('mailnotify');
-		$toEmail = OC_MailNotify_Mailing::db_get_mail_by_user($toUid);			
-		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New message from '.$fromUid);
-		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=UTF-8\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
 		$intMsgUrl = OCP\Util::linkToAbsolute('index.php/apps/internal_messages');
 		
-		$text = '<html><br/>'.$l->t('<p>Hi %s,<br> You have a new message from <b>%s</b>.
-									<p %s><br>%s<br></p>
-									Please log in to <a href="%s">%s</a> to reply.<br>
-									<p %s>This e-mail is automatic, please, do not reply to it.</p></html>',
-									array($toUid, $fromUid, 'style="background-color:rgb(248,248,248);padding:20px;margin:15px;border:1px solid silver;border-radius:5px;"',$msg, $intMsgUrl,getenv('SERVER_NAME'),'style="color:grey;"'));
-		//TODO shoud pass by a common function to use mail()
-		mail($toEmail, $subject, $text.$signature, $from);	
+		$text = "You have a new message from <b>$fromUid</b>.
+				<p><br>$msg<br></p>
+				Please log in to <a href=\"$intMsgUrl\">%s</a> to reply.<br>";
+	
+			OC_MailNotify_Mailing::sendEmail($text,$l->t('New message from '.$fromUid),$toUid);
 	}
 
 		
 	
-	// mail all queuted notification in the database (mainly triggered by cronjob)
+	// mail all queue notification in the database (mainly triggered by cronjob)
 	static public function do_notification_queue(){
+			$l = new OC_L10N('mailnotify');
 		$nm_upload = self::db_get_nm_upload();
 		
 		//list all unique nm_upload path
@@ -105,20 +100,21 @@ class OC_MailNotify_Mailing {
 			} 	
 		} 
 
-		//mail
-		//TODO do it bether
+		//assamble emails
+		$msg = '';
 		foreach ($mailTo as $uid => $files) {
-			$msg = 'Hi '.$uid.', <br><br>Owncloud Mail Notification<br><br>Changes have been done to the folowing files:<br><br>';
+			$msg.= '<ul>';
 			foreach ($files as $file) {
-				$msg .= $file.'<br>';	
-				OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);
+				$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
+				$url_name = basename($file);								
+				$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';	
+				OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be no email send verification 
 			}	
-			$msg .= '<br><br>This is an automatic email. Do not respond.<br>';
-			mail(OC_MailNotify_Mailing::db_get_mail_by_user($uid)	, 'Owncloud file change notification.', $msg);	
+			$msg .='</ul>';
+			OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
 		}
 	}
 
-		
 	
 	
 	
@@ -127,10 +123,31 @@ class OC_MailNotify_Mailing {
 	
 
 //================= PRIVATE ===============================//
+	private static function sendEmail($msg,$action,$toUid){
+ 	$l = new OC_L10N('mailnotify');
+					
+		$txtmsg = '<html><p>Hi, '.$uid.', <br><br>';
+		$txtmsg .= '<p>'.$msg;
+		$txtmsg .= $l->t('<p>This e-mail is automatic, please, do not reply to it.</p></html>');
 
-
+ 		$result = OC_Mail::send(
+ 			OC_MailNotify_Mailing::db_get_mail_by_user($toUid),
+		 	$toUid,
+		 	'['.getenv('SERVER_NAME')."] - ".$action,
+		 	$txtmsg,
+		 	'Mail_Notification@'.getenv('SERVER_NAME'),
+		 	'',
+		 	1,
+		 	'',
+		 	'',
+		 	'',
+		 	'' 
+		);		
+	}
 	
-	// check if notification of $path is disabled or excluded for $uid.  
+	
+	
+	// check if $path shoud be excluded form $uid notifications.  
 	private static function is_uid_exclude($uid,$path){
 	
 		// hardcoded static exclusion array 
@@ -157,7 +174,6 @@ class OC_MailNotify_Mailing {
 		
 		//ignore if the most recent notification is inside the time buffer 
 		foreach (self::db_get_nm_upload() as $row) {
-			
 			if ($row['path'] == $path && $row['timestamp'] > time()-self::$minimum_queue_delay ) {
 				return true;	
 			}
@@ -313,7 +329,7 @@ class OC_MailNotify_Mailing {
 
 	/**
 	 * folder is shared
-	 */ // TODO rewrite this function !!!
+*/
 
 	public static function db_folder_is_shared($path){
 
@@ -380,26 +396,7 @@ class OC_MailNotify_Mailing {
 	 * Counts the new uploads of a group
 	 */	
 
-	public static function db_count_uploads($gid)
-	{
-		$strings = array();
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_uploads` WHERE `folder` = ?');
-		$result=$query->execute(array($gid));
-		if(OC_DB::isError($result)) {
-			return;
-		}
-
-		while($row=$result->fetchRow()) {
-			$strings[]=$row;
-		}
-
-		$count = count($strings);
-		//print($count); //debug
-		return $count;
-		
-	}
-
-
+	
 
 	/**
 	 * bool: user disabled notify
@@ -434,86 +431,12 @@ class OC_MailNotify_Mailing {
 
 
 
-	/**
-	 * Return a array files/folders 
-	 */
-	public static function db_get_upload_users()
-	{
-		$dec_timestamp = time()-300; //5 min timer 300
-		$strings = array();
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_uploads` WHERE `timestamp` <= ? GROUP by folder');
-		$result=$query->execute(array($dec_timestamp));
-
-		if(OC_DB::isError($result)) {
-			return;
-		}
-
-		while($row=$result->fetchRow()) {
-			$strings[]=$row;
-		}
-
-		return $strings;
-	}
-	
-	
-
-
-	/**
-	 * notify group members if there are new uploads
-	 */
-	private static function email($mail,$count,$str_filenames,$folder,$owner){
-		
-		$l = new OC_L10N('mailnotify');
-		$subject = '['.getenv('SERVER_NAME')."] - ".$l->t('New upload');
-		$from = "MIME-Version: 1.0\r\nContent-type: text/html; charset=UTF-8\r\nFrom: ".getenv('SERVER_NAME')." <Mail_Notification@".getenv('SERVER_NAME').">\r\n";
-
-		$signature = '<a href="'.OCP\Util::linkToAbsolute('files','index.php').'">'.getenv('SERVER_NAME').'</a>'.'<br>'.$l->t('This e-mail is automatic, please, do not reply to it. If you no longer want to receive theses alerts, disable notification on each shared items.');
-		
-		$text = '<html><p style="margin-bottom:10px;">'.$l->t('There was').' <b>'.$count.'</b> '.$l->t('new files uploaded in').' <a href="'.OCP\Util::linkToAbsolute('files','index.php').'?dir='.$folder.'" target="_blank">'.$folder.'</a> ('.$owner.')</p>'.$str_filenames.'<br/><p>'.$signature.'</p></html>';
-		mail($mail, $subject, $text, $from);
-
-	}
-	
-
-	/**
-	 * Remove uploads by group/folder
-	 */
-
-	public static function db_remove_uploads_by_group($gid)
-	{
-		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `folder` = ?');
-		$query->execute(array($gid));
-	}
-
-
-	/**
-	 * Get upload filenames by folder
-	 */
-
-	 
-	 
-	 
-	 
-	public static function db_get_upload_filenames($gid)
-	{
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_uploads` WHERE `folder` = ?');
-		$result=$query->execute(array($gid));
-		if(OC_DB::isError($result)) {
-			return;
-		}
-		while($row=$result->fetchRow()) {
-			$strings=array('path'=>$row['path'],'owner'=>$row['uid']);
-		}
-		return $strings;
-	}
-
-
 
 
 	/**
 	 * Get mail by userID
 	 */
-
+//TODO REWRITE THIS FUNCTION
 	public static function db_get_mail_by_user($uid)
 	{
 		$key = 'email';
@@ -532,7 +455,7 @@ class OC_MailNotify_Mailing {
 
 
 //===================== INIT FUNCTIONS ==========================//
-
+//TODO SEPERATE FILE FOR THIS 
 	/**
 	 * Get string between 2 values
 	 */
@@ -654,7 +577,7 @@ class OC_MailNotify_Mailing {
 	        if (substr($line, 0, 1) == '[') {
 	            $currentSection = substr($line, 1, -1);
 	            $data[$currentSection] = array();
-	            
+
 	        }
 	        else
 	        {
