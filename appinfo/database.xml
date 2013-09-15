@@ -23,14 +23,6 @@
    </field>
 
   <field>
-    <name>folder</name>
-    <type>text</type>
-    <default></default>
-    <notnull>true</notnull>
-    <length>255</length>
-   </field>
-
-  <field>
     <name>timestamp</name>
     <type>text</type>
     <default></default>
@@ -68,7 +60,7 @@
    </field>
 
   <field>
-    <name>group</name>
+    <name>path</name>
     <type>text</type>
     <default></default>
     <notnull>true</notnull>
