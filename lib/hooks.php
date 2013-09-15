@@ -1,5 +1,5 @@
 <?php
-
+				
 class OC_MailNotify_Hooks{
 	
 	
@@ -7,7 +7,8 @@ class OC_MailNotify_Hooks{
 	 *  Notify a new file/forder creation or change.
 	 */
 	static public function notify($path) {
-		OC_MailNotify_Mailing::main($path);
+		OC_MailNotify_Mailing::queue_fileChange_notification($path);
+		
 		return true;
 	}
 
