@@ -31,7 +31,7 @@ $(document).ready(function() {
 	    			} 
 		    	});   		
 	    			
-				return OC.imagePath('mailnotify', 'err.png');	      
+				return OC.imagePath('mailnotify', 'loading.png');	      
 		    }, 
 		    function (file) {	    	
 			    var row = $('tr').filterAttr('data-file', String(file));

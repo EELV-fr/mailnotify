@@ -1,13 +1,10 @@
 <?php
 /**
 * ownCloud - MailNotify Plugin
-*
+* 
 * OC_MailNotify_Mailing Class
 *
 */
-
-//TODO namespace
-
 class OC_MailNotify_Mailing {
 
 	// do not notify for following folders
@@ -16,12 +13,12 @@ class OC_MailNotify_Mailing {
 
 	
 	//==================== PUBLIC ==============================//
-
+/** @deprecated */
 	 public static function main($path){
 		\OCP\Util::writeLog('mailnotify', 'The main() function found at line '.__LINE__.' is depricated. use queue_fileChange_notification() insted', \OCP\Util::WARN);
 		self::queue_fileChange_notification($path);
 	}
-	 
+/** @deprecated */	 
 	public static function db_notify_group_members(){
 		\OCP\Util::writeLog('mailnotify', 'The db_notify_group_members() function found at line '.__LINE__.' is depricated. use do_notification_queue() insted', \OCP\Util::WARN);
 		self::do_notification_queue();
@@ -30,26 +27,24 @@ class OC_MailNotify_Mailing {
 
 		
 	/**
-	 * Add file change to the notification queue in the database 
-	 * trigger on file/folder change/upload 
+	 *  Add file change to the notification queue in the database 
+	 * trigger on file/folder change/upload
+	 * @param $path Path of the modified file. 
+ 	 * @return void 
 	 */		
 	public static function queue_fileChange_notification($path){
  		$timestamp = time();
-		
-		$sharing_parent = self::get_first_sharing_in($path['path']);
-		
-		if( $sharing_parent !== -1 ){
-			// add file/folder to the notifications queue in the database. 
-			self::db_insert_upload(OCP\User::getUser(), $path['path'], $timestamp, $sharing_parent);	
-		}else{
-			\OCP\Util::writeLog('mailnotify', 'Nothing to do. This file/folder is not shared or under a shared directory.', \OCP\Util::WARN);
-		}		
+		self::db_insert_upload(OCP\User::getUser(),  $timestamp,$path['path']);	
 	}
 	
 
 
 	/**
-	 * direct notification of an internal message (no queue delay)
+	 *  Direct notification of an internal message (no queue delay)
+	 * @param $fromUid uid of the message author. 
+	 * @param $toUid destination uid. 
+	 * @param $msg message content. 
+	 * @return void 
 	 */
 	public static function email_IntMsg($fromUid, $toUid, $msg){		
 		$l = new OC_L10N('mailnotify');
@@ -59,39 +54,87 @@ class OC_MailNotify_Mailing {
 				<p><br>$msg<br></p>
 				Please log in to <a href=\"$intMsgUrl\">%s</a> to reply.<br>";
 	
-			OC_MailNotify_Mailing::sendEmail($text,$l->t('New message from '.$fromUid),$toUid);
+		OC_MailNotify_Mailing::sendEmail($text,$l->t('New message from '.$fromUid),$toUid);
 	}
 
 		
 	
-	// mail all queue notification in the database (mainly triggered by cronjob)
+	/**
+	 *  check for pending notification and send corresponding emails (trigger by cronjob) 
+	 * @return void 
+	 */
 	static public function do_notification_queue(){
-			$l = new OC_L10N('mailnotify');
+		$l = new OC_L10N('mailnotify');
 		$nm_upload = self::db_get_nm_upload();
-		
-		//list all unique nm_upload path
+		$shares = self::db_get_share();
+		$mailTo = array();
 		$filesList = array(); 
-		foreach ($nm_upload as $value) {		
-			$filesList[$value['path']] = array();
-		}
-		
-		// get each modifiers uids and last edit date of for each file
-		foreach ($filesList as $key => $file) {			
-			foreach ( $nm_upload as $row) {
-				if ( $row['path'] == $key ) {
-					$filesList[$key]['uid'] = $row['uid'];
-					if ( !isset($file['timestamp']) || $file['timestamp'] < $row['timestamp'] ) {
-						$filesList[$key]['timestamp'] = $row['timestamp'];	
-					}
-				}		
+				
+		//list all unique nm_upload path. add most recent timestamp and list editors.
+		foreach ($nm_upload as $row) {		
+			$filesList[$row['path']] = array();
+			if ( !isset($filesList[$row['path']]['timestamp']) || $filesList[$row['path']]['timestamp'] < $row['timestamp'] ) {
+				$filesList[$row['path']]['timestamp'] = $row['timestamp']; 
 			}
 		}
 		
-		//get who want wich notifications
-		$mailTo = array();
+		
+		
+		
+/* 		["item_source"]=>
+  string(1) "9"
+  ["item_target"]=>
+  string(2) "/9"
+  ["file_source"]=>
+  string(1) "9"
+  ["file_target"]=>
+  string(26) "/fffffffffffffffffffffffff"
+ * 
+ * OCP\Share::getUsersItemShared	(	 	$itemType,
+ 	$itemSource,
+ 	$uidOwner,
+ 	$includeCollections = false 
+)	
+ * 
+ * 
+ * 
+static OCP\Share::getItemSharedWithBySource	(	 	$itemType,
+ 	$itemSource,
+ 	$format = self::FORMAT_NONE,
+ 	$parameters = null,
+ 	$includeCollections = false 
+)
+ * 
+ * static OCP\Share::getUsersSharingFile	(	 	$path,
+ 	$user,
+ 	$includeOwner = false 
+)			
+ * 
+ *   $root = \OC\Files\Filesystem::getRoot();	
+ * 
+ * $uidOwner 
+ * 
+		*/
+		
+		
+		
+		
+		// find who want wich notifications
 		foreach ($filesList as $key => $file) {
-			foreach (self::db_get_share() as $row) {
-				if ($row['file_target'] == $key && !self::is_uid_exclude($row['uid_owner'],$key) ){					
+			foreach ($shares as $row) {
+				echo "<hr>";
+				echo 'searching for '.$key.'<br>' ;
+				
+			
+				 echo '<br>'.$row["share_with"];
+				 echo '<br>'.$row["file_target"].'<br>';
+				 ;
+				 	// var_dump(OC\Files\Filesystem::initMountPoints(	 $row["share_with"]	));
+				 var_dump(OC\Files\Filesystem::getPath	($row["file_target"]));
+			;
+
+				
+				if ( self::db_folder_is_shared_with_me($row ) && !self::is_uid_exclude($row['uid_owner'],$key) ){					
 					$mailTo[$row['share_with']][] = $key;	
 				}					
 			} 	
@@ -105,7 +148,7 @@ class OC_MailNotify_Mailing {
 				$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
 				$url_name = basename($file);								
 				$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';	
-				OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be no email send verification 
+			//	OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be no email send verification 
 			}	
 			$msg .='</ul>';
 			OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
@@ -120,13 +163,16 @@ class OC_MailNotify_Mailing {
 	
 
 //================= PRIVATE ===============================//
+
+
 	private static function sendEmail($msg,$action,$toUid){
  	$l = new OC_L10N('mailnotify');
 					
 		$txtmsg = '<html><p>Hi, '.$uid.', <br><br>';
 		$txtmsg .= '<p>'.$msg;
 		$txtmsg .= $l->t('<p>This e-mail is automatic, please, do not reply to it.</p></html>');
-
+echo $txtmsg;
+echo "\n====================================================\n";
  		$result = OC_Mail::send(
  			OC_MailNotify_Mailing::db_get_mail_by_user($toUid),
 		 	$toUid,
@@ -140,6 +186,7 @@ class OC_MailNotify_Mailing {
 	
 	
 	// check if $path shoud be excluded form $uid notifications.
+	// @return true if shoud be excluded false if not
 	private static function is_uid_exclude($uid,$path){
 	
 		// hardcoded static exclusion array 
@@ -149,10 +196,10 @@ class OC_MailNotify_Mailing {
 			}			 
 		 }
 
-		// database user preferance
-		//db_user_setting_get_status($uid, $path)
-		// TODO
-		
+		// database user preferances
+		if ( OC_MailNotify_Mailing::db_user_setting_get_status($uid, $path) !== 'enable') {
+			return true;	
+		}
 		
 		//exclude creator of change
 		$found = 0 ; 
@@ -165,16 +212,13 @@ class OC_MailNotify_Mailing {
 			return true;
 		}
 		
-		//TODO is shared 
-		
-		
 		//ignore if the most recent notification is inside the time buffer 
 		foreach (self::db_get_nm_upload() as $row) {
 			if ($row['path'] == $path && $row['timestamp'] > time()-self::$minimum_queue_delay ) {
 				return true;	
 			}
 		}
-		
+	return false;	
 	}	
 
 
@@ -193,7 +237,7 @@ class OC_MailNotify_Mailing {
 
 	/*
 	* Evaluate path and return frist sharing parent
-	*///TODO rewrite 
+	*/
 	private static function get_first_sharing_in($path){
 		$splits = explode("/", $path);
 
@@ -208,50 +252,52 @@ class OC_MailNotify_Mailing {
 
 
 
+
+
+//=================== DATABASE ACCES ===================================//
+
+
+
+
 	/**
 	 * bool folder shared with me
 	 * format: /examplefolder
-	 */
-//TODO REWRITE THIS FUNCTION
-	public static function db_folder_is_shared_with_me($folder){
+	 */ 
+	private static function db_folder_is_shared_with_me($path,$user = ''){
+		$path = str_replace('/Shared/', '/', $path); //TODO REGEX for shared at the begining only!
+		
+		if ($user = '' ) {
+		$user = OCP\User::getUser();			
+		}
 
-		$user = OCP\User::getUser();
-
-		$strings = array();
 		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ? AND (`share_with` = ? OR `uid_owner` = ?)');
-		$result=$query->execute(array($folder,$user,$user));
+		$result=$query->execute(array($path,$user,$user));
 
 		if(OC_DB::isError($result)) {
-			return;
+			\OCP\Util::writeLog('mailnotify', 'database error at '.__LINE__ .' Result='.$result, \OCP\Util::ERROR);
+			return -1;
 		}
-
-		while($row=$result->fetchRow()) {
-			$strings[]=$row;
-		}
-
-		$count = count($strings);
-
-		if($count >= 1){
+		
+			\OCP\Util::writeLog('mailnotify', 'database  '.$path.$result->numRows()  , \OCP\Util::ERROR);
+		if($result->numRows() > 0){			
 			return true;
 		}else{
 			return false;
 		}
-
 	}
-
-//=================== DATABASE ACCES ===================================//
 
 
 
 	/**
 	 * Inserts an upload entry in our mail notify database
 	 */
-	private static function db_insert_upload($uid, $path, $timestamp, $gid){
+	private static function db_insert_upload($uid,  $timestamp, $path){
+		
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_uploads`(`uid`, `timestamp`, `path`) VALUES(?,?,?)');
-		$result=$query->execute(array($uid, $timestamp, $path));
+		$result=$query->execute(array($uid, $timestamp, OC\Files\Filesystem::getLocalFile($path)));
 	
-		if ( $relult !== 0 ) {
-			\OCP\Util::writeLog('mailnotify', 'Failed to add new notification in the notify database Result='.$relult, \OCP\Util::ERROR);
+		if (OC_DB::isError($result) ) {
+			\OCP\Util::writeLog('mailnotify', 'Failed to add new notification in the notify database Result='.$result, \OCP\Util::ERROR);
 		}	
 		return $result;
 	}
@@ -268,7 +314,6 @@ class OC_MailNotify_Mailing {
 		if(OC_DB::isError($result)) {
 			\OCP\Util::writeLog('mailnotify', 'Failed to get nm_upload from database at line '.__FILE__.' Result='.$relult, \OCP\Util::ERROR);
 			return -1;
-		
 		}else{
 			$strings = array();
 			while($row=$result->fetchRow()) {
@@ -280,24 +325,25 @@ class OC_MailNotify_Mailing {
 	
 
 
-
 	/**
 	* Remove uploads by path
  	*/
-
 	private static function db_remove_all_nmuploads_for($path){
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `path` = ?');
-		$query->execute(array($path));
+		$query->execute(array(OC\Files\Filesystem::getLocalFile($path)));
 	}
 		
 
+
 	/**
-	 * Remove user from settings
+	 * Remove notification disable entry form database   
+	 * @param $uid uid if the requesting user. 
+	 * @param $path of the file request. 
+	 * @return  1 if succes, 0 if fail. 
 	 */
-	public static function db_remove_user_setting($uid, $path)
-	{
+	public static function db_remove_user_setting($uid, $path){
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
-		if($query->execute(array($uid, $path))){
+		if($query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path)))){
 			return 1;
 		}
 		return 0;
@@ -305,12 +351,15 @@ class OC_MailNotify_Mailing {
 
 
 	/**
-	 * do not notify user.
+	 * Add a notification disable entry in the database 
+	 * @param $uid uid if the requesting user. 
+	 * @param $path of the requested file. 
+	 * @return  1 if succes, 0 if fail. 
 	 */
 	public static function db_user_setting_disable($uid, $path)
 	{
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_usersettings`(`uid`, `path`, `value`) VALUES(?,?,?)');
-		if($query->execute(array($uid, $path, 'disable'))){
+		if($query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path), 'disable'))){
 			return 1;
 		}
 		return 0;
@@ -319,107 +368,37 @@ class OC_MailNotify_Mailing {
 
 
 	/**
-	 * return specific user preferance for a path [enable|disable|notShared]
+	 * Get user's notification preferances status for a file/folder.  
+	 * @param $uid uid if the requesting user. 
+	 * @param $path of the requested file. 
+	 * @return [enable|disable|notShared] or 0 if fail
 	 */
-
 	public static function db_user_setting_get_status($uid, $path){
-		$path = urldecode($path);
-
-		if(self::db_folder_is_shared($path)){
-			$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
-			$result=$query->execute(array($uid, $gid));
+		$path = urldecode($path);		
+		\OCP\Util::writeLog('mailnotify', '==='.$path, \OCP\Util::ERROR);
 	
-			if(OC_DB::isError($result)) {
-				return;
-			}
+		if(self::get_first_sharing_in($path) !== -1){
+			$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
+			$result=$query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path)));
 
 			if($result->numRows() == 0){
 				return 'enable'; 
 			}else{
 				return 'disable';
 			}
-		}
-		else{
+		}else{
 			return 'notShared';
 		}
+		return 0;
 		
 	}
-
-
-
-	/**
-	 * folder is shared
-*/
-
-	public static function db_folder_is_shared($path){
-
-		$splits = explode( "/", $path);
-		$count = count($splits);
-		$path = "/".$splits[$count-1];
-
-		$strings = array();
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ?');
-		$result=$query->execute(array($path));
-
-		if(OC_DB::isError($result)) {
-			return;
-		}
-
-		while($row=$result->fetchRow()) {
-			$strings[]=$row;
-		}
-
-		$count = count($strings);
-
-		if($count >= 1){
-			return true;
-		}else{
-			return false;
-		}
-
-	}
-
-
+	
+	
 
 	/**
-	 * bool: user disabled notify
+	 * Get email address of userID
 	 */
-	public static function db_user_disabled_notify($uid, $gid){
-		//print($gid);
-
-		$strings = array();
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `group` LIKE ? AND `path`=disable');
-		$result=$query->execute(array($uid, '%'.$gid.'%'));
-        
-		if(OC_DB::isError($result)) {
-			return;
-		}
-
-		while($row=$result->fetchRow()) {
-			$strings[]=$row;
-		}
-
-		//print_r($strings);
-
-		$count = $result->numRows();//count($strings);
-		//print($count." ");
-
-		if($count >= 1){
-			return true;
-		}else{
-			return false;
-		}
-
-	}
-
-
-
-
-
-	/**
-	 * Get mail by userID
-	 */
-	public static function db_get_mail_by_user($uid)
+	private static function db_get_mail_by_user($uid)
 	{
 		$key = 'email';
 		$query=OC_DB::prepare('SELECT `configvalue` FROM `*PREFIX*preferences` WHERE `configkey` = ? AND `userid`=?');
