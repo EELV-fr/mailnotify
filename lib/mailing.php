@@ -33,8 +33,9 @@ class OC_MailNotify_Mailing {
  	 * @return void 
 	 */		
 	public static function queue_fileChange_notification($path){
+		$fileInfo = OC_Files::getFileInfo($path['path']);	
  		$timestamp = time();
-		self::db_insert_upload(OCP\User::getUser(),  $timestamp,$path['path']);	
+		self::db_insert_upload(OCP\User::getUser(),  $timestamp,$fileInfo['fileid']);	
 	}
 	
 
@@ -78,67 +79,21 @@ class OC_MailNotify_Mailing {
 			}
 		}
 		
-		
-		
-		
-/* 		["item_source"]=>
-  string(1) "9"
-  ["item_target"]=>
-  string(2) "/9"
-  ["file_source"]=>
-  string(1) "9"
-  ["file_target"]=>
-  string(26) "/fffffffffffffffffffffffff"
- * 
- * OCP\Share::getUsersItemShared	(	 	$itemType,
- 	$itemSource,
- 	$uidOwner,
- 	$includeCollections = false 
-)	
- * 
- * 
- * 
-static OCP\Share::getItemSharedWithBySource	(	 	$itemType,
- 	$itemSource,
- 	$format = self::FORMAT_NONE,
- 	$parameters = null,
- 	$includeCollections = false 
-)
- * 
- * static OCP\Share::getUsersSharingFile	(	 	$path,
- 	$user,
- 	$includeOwner = false 
-)			
- * 
- *   $root = \OC\Files\Filesystem::getRoot();	
- * 
- * $uidOwner 
- * 
-		*/
-		
-		
-		
-		
 		// find who want wich notifications
 		foreach ($filesList as $key => $file) {
 			foreach ($shares as $row) {
-				echo "<hr>";
-				echo 'searching for '.$key.'<br>' ;
-				
-			
-				 echo '<br>'.$row["share_with"];
-				 echo '<br>'.$row["file_target"].'<br>';
-				 ;
-				 	// var_dump(OC\Files\Filesystem::initMountPoints(	 $row["share_with"]	));
-				 var_dump(OC\Files\Filesystem::getPath	($row["file_target"]));
-			;
 
-				
-				if ( self::db_folder_is_shared_with_me($row ) && !self::is_uid_exclude($row['uid_owner'],$key) ){					
-					$mailTo[$row['share_with']][] = $key;	
-				}					
+				if ($key === $row["file_source"] || self::is_under($key,$row["file_source"])) {
+					
+					if ( self::db_folder_is_shared_with_me($row ) && !self::is_uid_exclude($row['uid_owner'],$key) ){					
+						$mailTo[$row['share_with']][] = $row['file_target'];	
+					}					
+
+				}				
 			} 	
 		} 
+
+var_dump($mailTo);
 
 		//assamble emails
 		$msg = '';
@@ -148,7 +103,7 @@ static OCP\Share::getItemSharedWithBySource	(	 	$itemType,
 				$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
 				$url_name = basename($file);								
 				$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';	
-			//	OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be no email send verification 
+			//	OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be =cuz=> no email send verification. 
 			}	
 			$msg .='</ul>';
 			OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
@@ -163,6 +118,7 @@ static OCP\Share::getItemSharedWithBySource	(	 	$itemType,
 	
 
 //================= PRIVATE ===============================//
+
 
 
 	private static function sendEmail($msg,$action,$toUid){
@@ -257,6 +213,27 @@ echo "\n====================================================\n";
 //=================== DATABASE ACCES ===================================//
 
 
+//TODO change function name and add error catch
+	private static function is_under($needleId,$haystackId){
+		if ($needleId == $haystackId) {return TRUE;}
+		
+		// get parent id 
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*filecache` WHERE `fileid` = ? ');
+		$result = $query->execute(array($haystackId));
+		while($row=$result->fetchRow()) {
+			
+			if ($row['parent'] != $needleId && $row['parent'] != -1 ) {				
+				return self:: is_under($needleId,$row['parent']);
+				
+			} else if ($row['parent'] == -1 ) {
+				return false;
+				
+			}else {
+				return true;
+			}		
+		}
+	}
+
 
 
 	/**
@@ -272,13 +249,12 @@ echo "\n====================================================\n";
 
 		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ? AND (`share_with` = ? OR `uid_owner` = ?)');
 		$result=$query->execute(array($path,$user,$user));
-
+var_dump($result);
 		if(OC_DB::isError($result)) {
 			\OCP\Util::writeLog('mailnotify', 'database error at '.__LINE__ .' Result='.$result, \OCP\Util::ERROR);
 			return -1;
 		}
 		
-			\OCP\Util::writeLog('mailnotify', 'database  '.$path.$result->numRows()  , \OCP\Util::ERROR);
 		if($result->numRows() > 0){			
 			return true;
 		}else{
@@ -291,10 +267,10 @@ echo "\n====================================================\n";
 	/**
 	 * Inserts an upload entry in our mail notify database
 	 */
-	private static function db_insert_upload($uid,  $timestamp, $path){
+	private static function db_insert_upload($uid,  $timestamp, $fileid){
 		
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_uploads`(`uid`, `timestamp`, `path`) VALUES(?,?,?)');
-		$result=$query->execute(array($uid, $timestamp, OC\Files\Filesystem::getLocalFile($path)));
+		$result=$query->execute(array($uid, $timestamp, $fileid));
 	
 		if (OC_DB::isError($result) ) {
 			\OCP\Util::writeLog('mailnotify', 'Failed to add new notification in the notify database Result='.$result, \OCP\Util::ERROR);
@@ -375,7 +351,6 @@ echo "\n====================================================\n";
 	 */
 	public static function db_user_setting_get_status($uid, $path){
 		$path = urldecode($path);		
-		\OCP\Util::writeLog('mailnotify', '==='.$path, \OCP\Util::ERROR);
 	
 		if(self::get_first_sharing_in($path) !== -1){
 			$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
