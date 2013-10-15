@@ -9,7 +9,7 @@ class OC_MailNotify_Mailing {
 
 	// do not notify for following folders
 	public static $no_notify_folders = array('fakeGroup1','fakeGroup2');
-	public static $minimum_queue_delay = 0;
+	public static $minimum_queue_delay = 300;
 
 	
 	//==================== PUBLIC ==============================//
@@ -80,43 +80,41 @@ class OC_MailNotify_Mailing {
 		}
 		
 		// find who want wich notifications
-		foreach ($filesList as $key => $file) {
+		foreach ($filesList as $key => $timestamp) {
 			foreach ($shares as $row) {
 
-				if ($key === $row["file_source"] || self::is_under($key,$row["file_source"])) {
+				if (self::is_under($key,$row["file_source"])){
+					if (!self::is_uid_exclude('/Shared'.$row['file_target'],$row['share_with'])) {
+						$mailTo[$row['share_with']][] = $row['file_target'];							
+					} elseif(!self::is_uid_exclude($row['file_target'],$row['uid_owner'])) {
+						$mailTo[$row['uid_owner']][] = $row['file_target'];
+					}
+				}
+					 
 					
-					if ( self::db_folder_is_shared_with_me($row ) && !self::is_uid_exclude($row['uid_owner'],$key) ){					
-						$mailTo[$row['share_with']][] = $row['file_target'];	
-					}					
-
-				}				
-			} 	
+			}
+			
 		} 
-
-var_dump($mailTo);
-
+		
 		//assamble emails
+		if (isset($mailTo[0])) {		
 		$msg = '';
-		foreach ($mailTo as $uid => $files) {
-			$msg.= '<ul>';
-			foreach ($files as $file) {
-				$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
-				$url_name = basename($file);								
-				$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';	
-			//	OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be =cuz=> no email send verification. 
-			}	
-			$msg .='</ul>';
-			OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
+			foreach ($mailTo as $uid => $files) {
+				$msg.= '<ul>';
+				foreach ($files as $file) {
+					$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
+					$url_name = basename($file);								
+					$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';
+					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be =cuz=> no email send verification. 
+				}	
+				$msg .='</ul>';
+				OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
+			}
 		}
 	}
 
 	
 	
-	
-	
-	
-	
-
 //================= PRIVATE ===============================//
 
 
@@ -127,8 +125,8 @@ var_dump($mailTo);
 		$txtmsg = '<html><p>Hi, '.$uid.', <br><br>';
 		$txtmsg .= '<p>'.$msg;
 		$txtmsg .= $l->t('<p>This e-mail is automatic, please, do not reply to it.</p></html>');
-echo $txtmsg;
-echo "\n====================================================\n";
+		echo $txtmsg;
+		echo "\n====================================================\n";
  		$result = OC_Mail::send(
  			OC_MailNotify_Mailing::db_get_mail_by_user($toUid),
 		 	$toUid,
@@ -143,25 +141,24 @@ echo "\n====================================================\n";
 	
 	// check if $path shoud be excluded form $uid notifications.
 	// @return true if shoud be excluded false if not
-	private static function is_uid_exclude($uid,$path){
-	
+	private static function is_uid_exclude($fileName,$share_with_uid){
+		
 		// hardcoded static exclusion array 
 	 	foreach (self::$no_notify_folders as $folder) {
-			if ( basename($path) == $folder ) {
+			if ( $fileName == '/'.$folder ) {
 				return true;
 			}			 
 		 }
-
-		// database user preferances
-		if ( OC_MailNotify_Mailing::db_user_setting_get_status($uid, $path) !== 'enable') {
-			return true;	
+		
+		if ( self::db_user_setting_get_status($share_with_uid, $fileName) !== 'enable') {
+			return true;
 		}
 		
 		//exclude creator of change
 		$found = 0 ; 
 		foreach (self::db_get_nm_upload() as $row) {
-			if ($uid == $row['uid']) {
-				$found++;				
+			if ($share_with_uid == $row['uid']) {
+				$found++;
 			}		
 		}
 		if ($found == 1) {
@@ -179,28 +176,18 @@ echo "\n====================================================\n";
 
 
 
-	//get the database table share.
-	private static function db_get_share(){
-		$query=OC_DB::prepare("SELECT * FROM `*PREFIX*share` ");
-		$result=$query->execute();
-		
-		while($row=$result->fetchRow()) {
-			$rtn[] = $row;
-		}
-		return $rtn;
-	}
-
-
 	/*
 	* Evaluate path and return frist sharing parent
 	*/
-	private static function get_first_sharing_in($path){
+	private static function get_first_sharing_in($path){		
 		$splits = explode("/", $path);
-
+		$shares = self::db_get_share();
+	
 		foreach ($splits as $file_name) {
-			if ( self::db_folder_is_shared_with_me("/".$file_name) ) {
-				//\OCP\Util::writeLog('mailnotify', basename($path).' have been found to be shared under '.$file_name, \OCP\Util::WARN);
-				return $file_name;
+			foreach ($shares as $shares_row) {
+				if ($shares_row['file_target'] == '/'.$file_name ) {
+					return $file_name;
+				}				
 			}
 		}	
 		return -1;
@@ -213,7 +200,8 @@ echo "\n====================================================\n";
 //=================== DATABASE ACCES ===================================//
 
 
-//TODO change function name and add error catch
+//TODO change function name and add error catch, add doc
+//TODO can be done with OC_Files::getFileInfo($path['path'] 
 	private static function is_under($needleId,$haystackId){
 		if ($needleId == $haystackId) {return TRUE;}
 		
@@ -236,20 +224,32 @@ echo "\n====================================================\n";
 
 
 
+
+	//get the database table share.
+	private static function db_get_share(){
+		$query=OC_DB::prepare("SELECT * FROM `*PREFIX*share` ");
+		$result=$query->execute();
+		
+		while($row=$result->fetchRow()) {
+			$rtn[] = $row;
+		}
+		return $rtn;
+	}
+
+
+ 
 	/**
 	 * bool folder shared with me
 	 * format: /examplefolder
 	 */ 
 	private static function db_folder_is_shared_with_me($path,$user = ''){
-		$path = str_replace('/Shared/', '/', $path); //TODO REGEX for shared at the begining only!
-		
-		if ($user = '' ) {
-		$user = OCP\User::getUser();			
+		if ($user == '' ) {
+			$user = OCP\User::getUser();			
 		}
-
-		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `file_target` = ? AND (`share_with` = ? OR `uid_owner` = ?)');
+		
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*share` WHERE `item_source` = ? AND (`share_with` = ? OR `uid_owner` = ?)');
 		$result=$query->execute(array($path,$user,$user));
-var_dump($result);
+
 		if(OC_DB::isError($result)) {
 			\OCP\Util::writeLog('mailnotify', 'database error at '.__LINE__ .' Result='.$result, \OCP\Util::ERROR);
 			return -1;
@@ -306,20 +306,20 @@ var_dump($result);
  	*/
 	private static function db_remove_all_nmuploads_for($path){
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `path` = ?');
-		$query->execute(array(OC\Files\Filesystem::getLocalFile($path)));
+		$query->execute(array($path));
 	}
 		
 
 
 	/**
-	 * Remove notification disable entry form database   
-	 * @param $uid uid if the requesting user. 
-	 * @param $path of the file request. 
-	 * @return  1 if succes, 0 if fail. 
+	 * Remove notification disable entry form database
+	 * @param $uid uid if the requesting user.
+	 * @param $path of the file request.
+	 * @return  1 if succes, 0 if fail.
 	 */
 	public static function db_remove_user_setting($uid, $path){
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
-		if($query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path)))){
+		if($query->execute(array($uid, $path))){
 			return 1;
 		}
 		return 0;
@@ -335,7 +335,7 @@ var_dump($result);
 	public static function db_user_setting_disable($uid, $path)
 	{
 		$query=OC_DB::prepare('INSERT INTO `*PREFIX*mn_usersettings`(`uid`, `path`, `value`) VALUES(?,?,?)');
-		if($query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path), 'disable'))){
+		if($query->execute(array($uid, $path, 'disable'))){
 			return 1;
 		}
 		return 0;
@@ -350,11 +350,11 @@ var_dump($result);
 	 * @return [enable|disable|notShared] or 0 if fail
 	 */
 	public static function db_user_setting_get_status($uid, $path){
-		$path = urldecode($path);		
+		$path = urldecode($path);
 	
 		if(self::get_first_sharing_in($path) !== -1){
 			$query=OC_DB::prepare('SELECT * FROM `*PREFIX*mn_usersettings` WHERE `uid` = ? AND `path` = ?');
-			$result=$query->execute(array($uid, OC\Files\Filesystem::getLocalFile($path)));
+			$result=$query->execute(array($uid, $path));
 
 			if($result->numRows() == 0){
 				return 'enable'; 
@@ -529,3 +529,4 @@ var_dump($result);
 
 
 }
+//http://www.youtube.com/watch?v=TJL4Y3aGPuA
