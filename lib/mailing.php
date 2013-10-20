@@ -6,10 +6,9 @@
 *
 */
 class OC_MailNotify_Mailing {
-
 	// do not notify for following folders
 	public static $no_notify_folders = array('fakeGroup1','fakeGroup2');
-	public static $minimum_queue_delay = 300;
+	public static $minimum_queue_delay = 00;
 
 	
 	//==================== PUBLIC ==============================//
@@ -34,7 +33,7 @@ class OC_MailNotify_Mailing {
 	 */		
 	public static function queue_fileChange_notification($path){
 		$fileInfo = OC_Files::getFileInfo($path['path']);	
- 		$timestamp = time();
+ 		$timestamp = time(); //TODO timestamp nust be a constant.
 		self::db_insert_upload(OCP\User::getUser(),  $timestamp,$fileInfo['fileid']);	
 	}
 	
@@ -65,6 +64,7 @@ class OC_MailNotify_Mailing {
 	 * @return void 
 	 */
 	static public function do_notification_queue(){
+			\OCP\Util::writeLog('mailnotify', 'Cronjob is triggered.', \OCP\Util::DEBUG);	
 		$l = new OC_L10N('mailnotify');
 		$nm_upload = self::db_get_nm_upload();
 		$shares = self::db_get_share();
@@ -81,34 +81,33 @@ class OC_MailNotify_Mailing {
 		
 		// find who want wich notifications
 		foreach ($filesList as $key => $timestamp) {
-			foreach ($shares as $row) {
+			foreach ($shares as $sharesKey => $row) {
 
 				if (self::is_under($key,$row["file_source"])){
 					if (!self::is_uid_exclude('/Shared'.$row['file_target'],$row['share_with'])) {
-						$mailTo[$row['share_with']][] = $row['file_target'];							
+						$mailTo[$row['share_with']][] = $sharesKey;							
 					} elseif(!self::is_uid_exclude($row['file_target'],$row['uid_owner'])) {
-						$mailTo[$row['uid_owner']][] = $row['file_target'];
+						$mailTo[$row['uid_owner']][] = $sharesKey;
+						//TODO in shares,for each file, add each the as sharer . then the elseis upthere will become useless 
 					}
 				}
-					 
-					
 			}
 			
 		} 
 		
 		//assamble emails
-		if (isset($mailTo[0])) {		
-		$msg = '';
+		if (!empty($mailTo)) {
 			foreach ($mailTo as $uid => $files) {
-				$msg.= '<ul>';
-				foreach ($files as $file) {
-					$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.OC_Util::sanitizeHTML($file);
-					$url_name = basename($file);								
+			$msg = '<ul> Following files have been modified. <br><br>';
+				foreach ($files as $rowId) {
+					$url_path = OCP\Util::linkToAbsolute('files','index.php').'/download'.$shares[$rowId]['file_target'];
+					$url_name = $shares[$rowId]['file_target'];//TODO remonve / at first char
 					$msg .='<li><a href="'.$url_path.'" target="_blank">'.$url_name.'</a></li>';
-					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($file);//TODO not a good place to be =cuz=> no email send verification. 
+					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($shares[$rowId]['item_source']);
 				}	
 				$msg .='</ul>';
 				OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
+
 			}
 		}
 	}
@@ -118,23 +117,17 @@ class OC_MailNotify_Mailing {
 //================= PRIVATE ===============================//
 
 
-
 	private static function sendEmail($msg,$action,$toUid){
  	$l = new OC_L10N('mailnotify');
 					
-		$txtmsg = '<html><p>Hi, '.$uid.', <br><br>';
+		$txtmsg = '<html><p>Hi, '.$toUid.', <br><br>';
 		$txtmsg .= '<p>'.$msg;
 		$txtmsg .= $l->t('<p>This e-mail is automatic, please, do not reply to it.</p></html>');
-		echo $txtmsg;
-		echo "\n====================================================\n";
- 		$result = OC_Mail::send(
- 			OC_MailNotify_Mailing::db_get_mail_by_user($toUid),
-		 	$toUid,
-		 	'['.getenv('SERVER_NAME')."] - ".$action,
-		 	$txtmsg,
-		 	'Mail_Notification@'.getenv('SERVER_NAME'),
-		 	'',1,'','','','' 
-		);		
+ 		if (self::db_get_mail_by_user($toUid) !== NULL) {
+	 		$result = OC_Mail::send(self::db_get_mail_by_user($toUid), $toUid, '['.getenv('SERVER_NAME')."] - ".$action, $txtmsg, 'Mail_Notification@'.getenv('SERVER_NAME'), 'Owncloud', 1 );		
+		}else{
+		 	echo "Email address error<br>";
+		 }
 	}
 	
 	
@@ -304,9 +297,14 @@ class OC_MailNotify_Mailing {
 	/**
 	* Remove uploads by path
  	*/
-	private static function db_remove_all_nmuploads_for($path){
+	private static function db_remove_all_nmuploads_for($fileId){
+		echo "<br>=!=>$fileId<br>";
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `path` = ?');
-		$query->execute(array($path));
+		$result=$query->execute(array($fileId));
+		if(OC_DB::isError($result)) {
+			echo "db_remove_all_nmuploads_for ERROR";
+		}
+
 	}
 		
 

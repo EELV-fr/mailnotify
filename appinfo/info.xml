@@ -3,7 +3,7 @@
 	<id>mailnotify</id>
 	<name>MailNotify</name>
 	<description>Sends a mail notify on new upload.</description>
-	<version>2.0.1</version>
+	<version>3.0.0-RC1</version>
 	<licence>AGPL</licence>
 	<author>Jascha Burmeister, Bastien Ho (EELV), Felix Baltruschat</author>
 	<require>4</require>
