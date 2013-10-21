@@ -102,6 +102,7 @@ class OC_MailNotify_Mailing {
 			}
 			
 		} 
+
 		//assamble emails
 		if (!empty($mailTo)) {
 			foreach ($mailTo as $uid => $files) {
@@ -110,10 +111,10 @@ class OC_MailNotify_Mailing {
 					$url_path = self::db_get_filecash_path($shares[$rowId]['item_source']);
 					$url_name = substr($shares[$rowId]['file_target'], 1);
 					$msg .='<li><a href="'.OCP\Util::linkTo('index.php/apps/files?dir=//Shared','').'" target="_blank">'.$url_name.'</a></li>'; //FIXME static redirection :(
-					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($shares[$rowId]['item_source']);
+					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($shares[$rowId]['file_source']);
 				}	
 				$msg .='</ul>';
-				echo $msg.'<br><hr>';
+echo $msg.'<br><hr>';
 
 				OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
 
@@ -323,11 +324,20 @@ class OC_MailNotify_Mailing {
 	* Remove uploads by path
  	*/
 	private static function db_remove_all_nmuploads_for($fileId){
+
 		$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `path` = ?');
 		$result=$query->execute(array($fileId));
 		if(OC_DB::isError($result)) {
-			echo "db_remove_all_nmuploads_for ERROR";
+			echo "db_remove_all_nmuploads_for direct remove ERROR";
 		}
+
+	// clean forgotten entry in database.
+	$query=OC_DB::prepare('DELETE FROM `*PREFIX*mn_uploads` WHERE `timestamp` < ?');
+		$result=$query->execute(array((self::$minimum_queue_delay*3)+60));
+		if(OC_DB::isError($result)) {
+			echo "db_remove_all_nmuploads_for database cleaning error ERROR";
+		}	
+ 
 
 	}
 		
