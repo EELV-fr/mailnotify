@@ -15,7 +15,7 @@ class OC_MailNotify_Mailing {
     	self::$now = time();
 		$l = new OC_L10N('mailnotify');
 		$nm_upload = self::db_get_nm_upload();
-		$shares = self::db_get_share();		
+		$shares = self::db_get_share();
    	}
 	
 	
@@ -97,12 +97,17 @@ class OC_MailNotify_Mailing {
 					} elseif(!self::is_uid_exclude($row['file_target'],$row['uid_owner'])) {  
 						$mailTo[$row['uid_owner']][] = $sharesKey;
 					}
+   					if(self::db_isgroup($row['share_with'])){ 
+                        foreach (self::db_get_usersOfGroup($row['share_with']) as $key => $user) {
+                           if (!self::is_uid_exclude('/Shared'.$row['file_target'],$row['share_with'])) { //if shared with user 
+                                $mailTo[$user][] = $sharesKey;
+                           }    
+                        }    
+                    }
 				}
-				
 			}
-			
 		} 
-
+															//var_dump($mailTo);
 		//assamble emails
 		if (!empty($mailTo)) {
 			foreach ($mailTo as $uid => $files) {
@@ -113,8 +118,6 @@ class OC_MailNotify_Mailing {
 					$msg .='<li><a href="'.OCP\Util::linkTo('index.php/apps/files?dir=//Shared','').'" target="_blank">'.$url_name.'</a></li>'; //FIXME static redirection :(
 					OC_MailNotify_Mailing::db_remove_all_nmuploads_for($shares[$rowId]['file_source']);
 				}	
-				$msg .='</ul>';
-echo $msg.'<br><hr>';
 
 				OC_MailNotify_Mailing::sendEmail($msg,$l->t('New upload'),$uid);	
 
@@ -174,6 +177,7 @@ echo $msg.'<br><hr>';
 				return true;	
 			}
 		}
+
 	return false;	
 	}	
 
@@ -397,11 +401,10 @@ echo $msg.'<br><hr>';
 			return 'notShared';
 		}
 		return 0;
-		
 	}
 	
 	
-
+	
 	/**
 	 * Get email address of userID
 	 */
@@ -420,6 +423,43 @@ echo $msg.'<br><hr>';
 		return $mail;
 
 	}
+	
+	
+	
+	private static function db_isgroup($gid){
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*group_user` WHERE `gid` = ?');
+		$result=$query->execute(array($gid));
+		 
+		 if(OC_DB::isError($result)) {
+			return -1;
+		 }
+		 
+		if($result->numRows() > 0){
+				return true; 
+			}else{
+				return false;
+			}
+	}
+
+		
+
+
+	private static function db_get_usersOfGroup($gid){
+		$query=OC_DB::prepare('SELECT * FROM `*PREFIX*group_user` WHERE `gid` = ?');
+		$result=$query->execute(array($gid));
+		 
+		 if(OC_DB::isError($result)) {
+			return -1;
+		 }
+		$users =   array();
+	
+		while($row=$result->fetchRow()) {				
+		
+		$users[]=$row['uid'];	
+				
+		}
+		return $users;
+			}
 
 
 //===================== INIT FUNCTIONS ==========================//
