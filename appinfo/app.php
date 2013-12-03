@@ -22,6 +22,7 @@
 
 
 OC::$CLASSPATH['OC_MailNotify_Mailing'] = 'mailnotify/lib/mailing.php';
+OC::$CLASSPATH['Queue_notification'] = 'mailnotify/lib/Queue_notification.php';
 OC::$CLASSPATH['OC_MailNotify_Hooks'] = 'mailnotify/lib/hooks.php';
 
 

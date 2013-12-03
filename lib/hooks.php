@@ -7,9 +7,8 @@ class OC_MailNotify_Hooks{
 	 *  Notify a new file/forder creation or change.
 	 */
 	static public function notify($path) {
-		OC_MailNotify_Mailing::queue_fileChange_notification($path);
-		
-		return true;
+		return Queue_notification::file_change($path);
+		 
 	}
 
 
@@ -18,7 +17,7 @@ class OC_MailNotify_Hooks{
 		//array('fromUid' => $msgfrom,'toUid' => $user,'msgContent' => $msgcontent, 'msgFlag' => $msgflag);	
 	 */
 	static public function notify_IntMsg($params) {
-			OC_MailNotify_Mailing::email_IntMsg($params['fromUid'], $params['toUid'], $params['msgContent']);
-			return true;
+		return	OC_MailNotify_Mailing::email_IntMsg($params['fromUid'], $params['toUid'], $params['msgContent']);
+			
 	}
 }
